@@ -1,0 +1,724 @@
+---
+- name: Set up bioimage VM 
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Update apt repository
+      apt:
+        update_cache: yes
+
+    - name: Ensure necessary packages are installed
+      apt:
+        name:
+          - lmod
+          - build-essential
+          - libssl-dev
+          - uuid-dev
+          - libgpgme11-dev
+          - squashfs-tools
+          - git
+          - wget
+          - autoconf
+          - automake
+          - cryptsetup
+          - fuse2fs
+          - fuse
+          - libfuse-dev
+          - libglib2.0-dev
+          - libtool
+          - pkg-config
+          - runc
+          - squashfs-tools-ng
+          - uidmap
+          - zlib1g-dev
+          - libseccomp-dev
+          - nano
+          - jupyter
+          - snakemake
+          - r-base
+          - pip
+          - ansible
+        state: present
+
+    - name: Ensure the /opt/Modules/modulefiles directory exists
+      file:
+        path: /opt/Modules/modulefiles
+        state: directory
+        # mode: '0755'  # Set permissions for the directory
+
+    - name: Ensure the /apps/Modules/modulefiles directory exists
+      file:
+        path: /apps/Modules/modulefiles
+        state: directory
+        # mode: '0755'  # Set permissions for the directory
+
+    # Install Singularity
+    - name: Check if /apps/go exists
+      stat:
+        path: /apps/go
+      register: go_apps_dir
+
+    - name: Check if /usr/local/go exists
+      stat:
+        path: /usr/local/go
+      register: go_local_dir
+
+    - name: Report status of /apps/go
+      debug:
+        msg: "/apps/go exists: {{ go_apps_dir.stat.exists }}"
+
+    - name: Report status of /usr/local/go
+      debug:
+        msg: "/usr/local/go exists: {{ go_local_dir.stat.exists }}"
+
+    - name: Take action based on Go installation paths
+      debug:
+        msg: >
+          Go is installed in:
+          {% if go_apps_dir.stat.exists %}
+            - /apps/go
+          {% endif %}
+          {% if go_local_dir.stat.exists %}
+            - /usr/local/go
+          {% endif %}
+          {% if not (go_apps_dir.stat.exists or go_local_dir.stat.exists) %}
+            - Neither path exists.
+          {% endif %}
+
+    - name: Install Go
+      block:
+        - name: Set Go version and architecture
+          set_fact:
+            go_version: "1.22.7"
+            os: "linux"
+            arch: "amd64"
+
+        - name: Download Go binary
+          get_url:
+            url: "https://dl.google.com/go/go{{ go_version }}.{{ os }}-{{ arch }}.tar.gz"
+            dest: /tmp/go{{ go_version }}.{{ os }}-{{ arch }}.tar.gz
+
+        - name: Extract Go binary to  /apps/
+          unarchive:
+            src: /tmp/go{{ go_version }}.{{ os }}-{{ arch }}.tar.gz
+            dest: /apps/
+            remote_src: yes
+
+        # - name: Set up Go environment variables in .bashrc
+        #   lineinfile:
+        #     path: /home/{{ ansible_user }}/.bashrc 
+        #     line: |
+        #       export GOPATH=${HOME}/go
+        #       export PATH=/apps/go/bin:${PATH}:${GOPATH}/bin
+        #     state: present
+
+    - name: Create directories for Singularity 
+      shell: |
+        export VERSION=4.2.1 && \
+        export GOPATH=${HOME}/go && \
+        mkdir -p $GOPATH/src/github.com/sylabs && \
+        cd $GOPATH/src/github.com/sylabs && \
+        wget https://github.com/sylabs/singularity/releases/download/v${VERSION}/singularity-ce-${VERSION}.tar.gz && \
+        tar -xzf singularity-ce-${VERSION}.tar.gz && \
+        cd ./singularity-ce-${VERSION}
+      # environment:
+        # GOPATH: "{{ lookup('env', 'HOME') }}/go"
+
+    - name: Compile the SingularityCE source code
+      shell: |
+        export VERSION=4.2.1  
+        export GOPATH=${HOME}/go 
+        export PATH=/apps/go/bin:${PATH}:${GOPATH}/bin
+        cd $GOPATH/src/github.com/sylabs/singularity-ce-${VERSION} && \
+        ./mconfig --prefix=/opt/singularity/4.2.1 && \
+        make -C ./builddir && \
+        make -C ./builddir install
+      args:
+        executable: /bin/bash
+      # environment:
+      #   GOPATH: "{{ lookup('env', 'HOME') }}/go"
+      #   PATH: "/usr/local/go/bin:{{ lookup('env', 'PATH') }}"
+
+    - name: Clean up Singularity source code
+      file:
+        path: /tmp/singularity
+        state: absent
+    
+    - name: Clean up go source code
+      file:
+        path: /apps/go
+        state: absent
+
+    - name: Create modulefile for Singularity
+      copy:
+        dest: /opt/Modules/modulefiles/singularity
+        content: |
+          #%Module1.0
+
+          proc ModulesHelp { } {
+              puts stderr "\tThis module makes available commands to run Singularity\n"
+          }
+
+          module-whatis   "Sets up the Singularity system in your environment"
+          prepend-path PATH "/opt/singularity/4.2.1/bin"
+
+    # Install Spack
+    - name: Install Spack
+      block:
+        - name: Clone Spack repository
+          shell: |
+            git clone -c feature.manyFiles=true --depth=2 https://github.com/spack/spack.git /usr/local/spack
+
+    # - name: Ensure the spack directory exists
+    #   file:
+    #     path: /apps/Modules/modulefiles/spack/
+    #     state: directory
+        # mode: '0755'  # Set permissions for the directory
+
+    # - name: Create modulefile for Spack
+    #   copy:
+    #     dest: /apps/Modules/modulefiles/spack/0.23.0
+    #     content: |
+    #       #%Module1.0
+
+    #       module-whatis "Spack"
+    #       setenv SPACK_ROOT "/apps/spack/0.23.0"
+    #       prepend-path PATH  "/apps/spack/0.23.0/bin"
+
+    # Intall Nextflow
+    - name: Ensure Java is installed
+      apt:
+        name: openjdk-11-jdk
+        state: present
+      when: ansible_os_family == "Debian"
+
+    # Make Nextflowfolder
+    - name: Create Nextflow folder
+      shell: |
+        mkdir -p /apps/Modules/modulefiles/nextflow
+        mkdir -p /apps/nextflow/24.04.4/bin
+      args:
+        executable: /bin/bash
+
+    - name: Download Nextflow
+      get_url:
+        url: https://get.nextflow.io
+        dest: /tmp/nextflow
+        mode: '0755'
+
+    - name: Move Nextflow to /apps
+      copy:
+        src: /tmp/nextflow
+        dest: /apps/nextflow/24.04.4/bin
+        mode: '0755'
+        remote_src: yes
+
+    - name: Verify Nextflow installation
+      shell: | 
+        export NXF_DIST=/apps/nextflow/24.04.4/framework
+        export CAPSULE_CACHE_DIR=/apps/nextflow/24.04.4/capsule
+        export PATH=/apps/nextflow/24.04.4/bin:${PATH}
+        nextflow -version
+        chmod 0664 /apps/nextflow/24.04.4/framework/24.04.4/nextflow-24.04.4-one.jar
+      register: nextflow_version
+
+    - name: Clean up temporary files
+      file:
+        path: /tmp/nextflow
+        state: absent
+
+    - name: Create modulefile for Nextflow
+      copy:
+        dest: /apps/Modules/modulefiles/nextflow/24.04.4
+        content: |
+          #%Module1.0
+
+          module-whatis   "Nextflow"
+          prepend-path PATH "/apps/nextflow/24.04.4/bin"
+          setenv NXF_DIST /apps/nextflow/24.04.4/framework
+          setenv CAPSULE_CACHE_DIR /apps/nextflow/24.04.4/capsule
+
+    # Install shpc
+    # - name: Create shpc installation directory
+    #   file:
+    #     path: "/usr/local/shpc"
+    #     state: directory
+        # mode: '0755'
+
+    # - name: Install shpc
+    #   pip:
+    #     name: "singularity-hpc==0.1.28"
+    #     extra_args: --prefix /usr/local/shpc
+
+    # Install shpc
+    - name: Install shpc
+      shell: |
+        cd /apps
+        git clone -b 0.1.28 https://github.com/singularityhub/singularity-hpc.git
+        cd singularity-hpc
+        pip install -e .[all]
+
+    # - name: Create modulefiles directory
+    #   file:
+    #     path: "/apps/Modules/modulefiles/shpc"
+    #     state: directory
+        # mode: '0755'
+    
+    # - name: Create shpc modulefile
+    #   copy:
+    #     dest: "/apps/Modules/modulefiles/shpc/0.1.28"
+    #     content: |
+    #       #%Module1.0
+
+    #       prepend-path PATH "/apps/shpc/0.1.28/bin"
+
+    - name: Move apt installed software to /apps
+      shell: |
+        mkdir -p /apps/R/4.1.2/bin
+        mkdir -p /apps/Modules/modulefiles/R
+        mv /usr/bin/R /apps/R/4.1.2/bin
+
+        mkdir -p /apps/jupyter/2024.10/bin
+        mkdir -p /apps/Modules/modulefiles/jupyter
+        mv /usr/bin/jupyter /apps/jupyter/2024.10/bin
+
+        mkdir -p /apps/snakemake/6.15.1/bin
+        mkdir -p /apps/Modules/modulefiles/snakemake
+        mv /usr/bin/snakemake /apps/snakemake/6.15.1/bin/
+
+        mkdir -p /apps/ansible/2.10.8/bin
+        mkdir -p /apps/Modules/modulefiles/ansible
+        mv /usr/bin/ansible /apps/ansible/2.10.8/bin/
+
+    - name: Create R modulefile
+      copy:
+        dest: "/apps/Modules/modulefiles/R/4.1.2"
+        content: |
+          #%Module1.0
+
+          prepend-path PATH "/apps/R/4.1.2/bin"
+        
+    - name: Create jupyter modulefile
+      copy:
+        dest: "/apps/Modules/modulefiles/jupyter/2024.10"
+        content: |
+          #%Module1.0
+
+          prepend-path PATH "/apps/jupyter/2024.10/bin"
+
+
+    - name: Create snakemake modulefile
+      copy:
+        dest: "/apps/Modules/modulefiles/snakemake/6.15.1"
+        content: |
+          #%Module1.0
+
+          prepend-path PATH "/apps/snakemake/6.15.1/bin"
+
+    - name: Create R modulefile
+      copy:
+        dest: "/apps/Modules/modulefiles/ansible/2.10.8"
+        content: |
+          #%Module1.0
+
+          prepend-path PATH "/apps/ansible/2.10.8/bin"
+
+    #Install cvmfs and configure with Galaxy, AARNET training, EESSI access
+    - name: Download CVMFS release package
+      get_url:
+        url: https://ecsft.cern.ch/dist/cvmfs/cvmfs-release/cvmfs-release-latest_all.deb
+        dest: /tmp/cvmfs-release-latest_all.deb
+
+    - name: Install CVMFS release package
+      apt:
+        deb: /tmp/cvmfs-release-latest_all.deb
+
+    - name: Remove CVMFS release package
+      file:
+        path: /tmp/cvmfs-release-latest_all.deb
+        state: absent
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install CVMFS
+      apt:
+        name: cvmfs
+        state: present
+
+    # - name: Download EESSI configuration package
+    #   get_url:
+    #     url: https://github.com/EESSI/filesystem-layer/releases/download/latest/cvmfs-config-eessi_latest_all.deb
+    #     dest: /tmp/cvmfs-config-eessi_latest_all.deb
+
+    # - name: Install EESSI configuration package
+    #   apt:
+    #     deb: /tmp/cvmfs-config-eessi_latest_all.deb
+
+    # - name: Remove EESSI configuration package
+    #   file:
+    #     path: /tmp/cvmfs-config-eessi_latest_all.deb
+    #     state: absent
+
+    # - name: Write default-client.local
+    #   copy:
+    #     dest: /etc/cvmfs/default-client.local
+    #     content: |
+    #       CVMFS_CLIENT_PROFILE=single
+    #       CVMFS_QUOTA_LIMIT=4096
+    #       CVMFS_USE_GEOAPI=yes
+
+    - name: Write default.local
+      copy:
+        dest: /etc/cvmfs/default.local
+        content: |
+          CVMFS_REPOSITORIES=data.biocommons.aarnet.edu.au,data.galaxyproject.org,singularity.galaxyproject.org
+          CVMFS_HTTP_PROXY='130.56.247.90:3128;130.56.247.132:3128'
+          # CVMFS_HTTP_PROXY='cvmfs-proxy-1.nci.org.au;cvmfs-proxy-2.nci.org.au'
+          CVMFS_QUOTA_LIMIT=4096
+          CVMFS_USE_GEOAPI=yes
+
+    - name: set up cvmfs and set autofs
+      shell: |
+          # ln -s /etc/cvmfs/default-client.local /etc/cvmfs/default.local
+          # ln -s /etc/cvmfs/default-proxy.local /etc/cvmfs/default.local
+          cvmfs_config setup
+          sed -i 's%#+dir:/etc/auto.master.d%+dir:/etc/auto.master.d%' /etc/auto.master
+          systemctl restart autofs
+          # rm -f /etc/auto.cvmfs
+          # cvmfs_config probe software.eessi.io
+
+    # - name: Modify autofs to never timeout
+    #   lineinfile:
+    #     path: /etc/auto.master.d/cvmfs.autofs 
+    #     regexp: '^/cvmfs /etc/auto.cvmfs'
+    #     line: '/cvmfs /etc/auto.cvmfs --timeout=0'
+    #     state: present
+
+    # - name: Write singularity.galaxyproject.org.pub key
+    #   copy:
+    #     dest: /etc/auto.cvmfs
+    #     content: |
+    #       # CVMFS Repositories
+    #       cvmfs-config.cern.ch -fstype=cvmfs :cvmfs-config.cern.ch
+    #       software.eessi.io  -fstype=cvmfs    :software.eessi.io
+    #       data.galaxyproject.org -fstype=cvmfs  :data.galaxyproject.org 
+    #       singularity.galaxyproject.org -fstype=cvmfs  :singularity.galaxyproject.org 
+    #       data.biocommons.aarnet.edu.au -fstype=cvmfs   :data.biocommons.aarnet.edu.au
+    
+    # - name: Write common.conf 
+    #   copy:
+    #     dest: /etc/cvmfs/common.conf 
+    #     content: |
+    #       # This should be included from every domain config.
+    #       # cvmfs does not parse included files for variable names, so first need
+    #       #   to set in the domain config any variable set here.
+
+    #       # The client profile is supposed to be set in /etc/cvmfs/default.local
+    #       if [ "$CVMFS_CLIENT_PROFILE" = "single" ]; then
+    #         if [ "$CVMFS_HTTP_PROXY" = "" ]; then
+    #           # For individual clients (laptops, clusters < 5 nodes), use a site proxy
+    #           # where possible and otherwise a direct stratum 1 connection
+    #           CVMFS_HTTP_PROXY="auto;DIRECT"
+    #         fi
+    #       elif [ "$CVMFS_CLIENT_PROFILE" != "custom" ]; then
+    #         # If not explicitly turned off through the "custom" profile:
+    #         # If an explicit site proxy is set, we also set a fallback proxy so that
+    #         # failing site proxies can be detected
+    #         if [ -n "$CVMFS_HTTP_PROXY" ] && [ "$CVMFS_HTTP_PROXY" != "DIRECT" ] && [ "$CVMFS_HTTP_PROXY" != "auto;DIRECT" ]; then
+    #           CVMFS_FALLBACK_PROXY="http://cvmfsbproxy.cern.ch:3126;http://cvmfsbproxy.fnal.gov:3126"
+    #         fi
+    #       fi
+
+    # - name: Write default.local
+    #   copy:
+    #     dest: /etc/cvmfs/default.local
+    #     content: |
+    #       CVMFS_HTTP_PROXY='cvmfs-proxy-1.nci.org.au,cvmfs-proxy-2.nci.org.au'
+    #       CVMFS_QUOTA_LIMIT=4096
+    #       CVMFS_USE_GEOAPI=yes
+
+    - name: Write data.biocommons.aarnet.edu.au.conf 
+      copy:
+        dest: /etc/cvmfs/config.d/data.biocommons.aarnet.edu.au.conf
+        content: |
+          CVMFS_SERVER_URL="http://bcws.test.aarnet.edu.au/cvmfs/@fqrn@"
+          CVMFS_PUBLIC_KEY="/etc/cvmfs/keys/data.biocommons.aarnet.edu.au/data.biocommons.aarnet.edu.au.pub"
+
+    # - name: Write eessi.io.conf
+    #   copy:
+    #     dest: /etc/cvmfs/domain.d/eessi.io.conf
+    #     content: |
+    #       # These are here so cvmfs will notice them if common.conf sets them
+    #       CVMFS_HTTP_PROXY="$CVMFS_HTTP_PROXY"
+    #       CVMFS_FALLBACK_PROXY="$CVMFS_FALLBACK_PROXY"
+    #       . ../common.conf
+
+    #       # Stratum 1 servers for the eessi.io domain
+    #       CVMFS_SERVER_URL="http://aws-eu-central-s1.eessi.science/cvmfs/@fqrn@;http://azure-us-east-s1.eessi.science/cvmfs/@fqrn@"
+
+    #       # Public keys for the eessi.io domain
+    #       CVMFS_KEYS_DIR="$CVMFS_MOUNT_DIR/$CVMFS_CONFIG_REPOSITORY/etc/cvmfs/keys/eessi.io"
+
+    #       # use Geo API, cfr. https://cvmfs.readthedocs.io/en/stable/cpt-configure.html#ordering-of-servers-according-to-geographic-proximity
+    #       CVMFS_USE_GEOAPI="yes"
+
+    - name: Write galaxyproject.org.conf 
+      copy:
+        dest: /etc/cvmfs/domain.d/galaxyproject.org.conf 
+        content: |
+          CVMFS_SERVER_URL="http://cvmfs1-tacc0.galaxyproject.org/cvmfs/@fqrn@;http://cvmfs1-iu0.galaxyproject.org/cvmfs/@fqrn@;http://cvmfs1-psu0.galaxyproject.org/cvmfs/@fqrn@;http://galaxy.jrc.ec.europa.eu:8008/cvmfs/@fqrn@;http://cvmfs1-mel0.gvl.org.au/cvmfs/@fqrn@"
+          CVMFS_KEYS_DIR="/etc/cvmfs/keys/galaxyproject.org"
+
+    - name: Ensure the /etc/cvmfs/keys/data.biocommons.aarnet.edu.au directory exists
+      file:
+        path: /etc/cvmfs/keys/data.biocommons.aarnet.edu.au
+        state: directory
+        
+    - name: data.biocommons.aarnet.edu.au key
+      copy:
+        dest: /etc/cvmfs/keys/data.biocommons.aarnet.edu.au/data.biocommons.aarnet.edu.au.pub
+        content: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3JEVgVhOjigVTX4OPVpj
+          EPIZEuhGzqhuvzu4ujovyEjrYoeXIfG+YSFIj9a3YxgPxRl1LVsBm59g+tqrUs25
+          //xUFIQVomaw8gLRy9txflDe2SWVh4m40IIEGGQQoXyY/Iv26i8vtcVhAJnvL+lM
+          Iu25nG3MM8rcuuGrYnQQekeoSZLd5Tg4JHC+YEy9n1jUkxCBUTr5XFIXCEQkR2Nr
+          9p6Hgol/NqUKZT76K3yWNfbRS/kXEB3ZOP6h0QDvVgwzfgTifoLge1cfJuiy/KtM
+          /UJr1k/cVp4l5ssL7Qqx582eGRJ/rn7K2BVNVF8XI+Fvgpp9DQPxu6U4S4WANKBE
+          OQIDAQAB
+          -----END PUBLIC KEY-----
+
+    - name: Ensure the /etc/cvmfs/keys/galaxyproject.org exists
+      file:
+        path: /etc/cvmfs/keys/galaxyproject.org
+        state: directory
+
+
+    - name: Write data.galaxyproject.org key
+      copy:
+        dest: /etc/cvmfs/keys/galaxyproject.org/data.galaxyproject.org.pub 
+        content: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5LHQuKWzcX5iBbCGsXGt
+          6CRi9+a9cKZG4UlX/lJukEJ+3dSxVDWJs88PSdLk+E25494oU56hB8YeVq+W8AQE
+          3LWx2K2ruRjEAI2o8sRgs/IbafjZ7cBuERzqj3Tn5qUIBFoKUMWMSIiWTQe2Sfnj
+          GzfDoswr5TTk7aH/FIXUjLnLGGCOzPtUC244IhHARzu86bWYxQJUw0/kZl5wVGcH
+          maSgr39h1xPst0Vx1keJ95AH0wqxPbCcyBGtF1L6HQlLidmoIDqcCQpLsGJJEoOs
+          NVNhhcb66OJHah5ppI1N3cZehdaKyr1XcF9eedwLFTvuiwTn6qMmttT/tHX7rcxT
+          owIDAQAB
+          -----END PUBLIC KEY-----
+
+    - name: Write singularity.galaxyproject.org.pub key
+      copy:
+        dest: /etc/cvmfs/keys/galaxyproject.org/singularity.galaxyproject.org.pub
+        content: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuJZTWTY3/dBfspFKifv8
+          TWuuT2Zzoo1cAskKpKu5gsUAyDFbZfYBEy91qbLPC3TuUm2zdPNsjCQbbq1Liufk
+          uNPZJ8Ubn5PR6kndwrdD13NVHZpXVml1+ooTSF5CL3x/KUkYiyRz94sAr9trVoSx
+          THW2buV7ADUYivX7ofCvBu5T6YngbPZNIxDB4mh7cEal/UDtxV683A/5RL4wIYvt
+          S5SVemmu6Yb8GkGwLGmMVLYXutuaHdMFyKzWm+qFlG5JRz4okUWERvtJ2QAJPOzL
+          mAG1ceyBFowj/r3iJTa+Jcif2uAmZxg+cHkZG5KzATykF82UH1ojUzREMMDcPJi2
+          dQIDAQAB
+          -----END PUBLIC KEY-----
+
+    # - name: Uncomment CVMFS_HTTP_PROXY line
+    #   ansible.builtin.lineinfile:
+    #     path: /etc/cvmfs/default.local 
+    #     regexp: '^#\s*CVMFS_HTTP_PROXY='
+    #     line: 'CVMFS_HTTP_PROXY="130.56.247.90:3128;130.56.247.132:3128"'
+    #     # line: 'CVMFS_HTTP_PROXY="cvmfs-proxy-1.nci.org.au,cvmfs-proxy-2.nci.org.au"'
+
+    # - name: Comment out CVMFS_CLIENT_PROFILE line
+    #   ansible.builtin.lineinfile:
+    #     path: /etc/cvmfs/default.local 
+    #     regexp: '^CVMFS_CLIENT_PROFILE='
+    #     line: '# CVMFS_CLIENT_PROFILE=single'
+
+
+    - name: setup cvmfs and probe resources
+      shell: |
+          # ln -sf /etc/cvmfs/default-proxy.local /etc/cvmfs/default.local
+          # systemctl restart autofs
+          cvmfs_config setup
+          cvmfs_config probe cvmfs-config.cern.ch 
+          # cvmfs_config probe software.eessi.io
+          cvmfs_config probe data.biocommons.aarnet.edu.au
+          cvmfs_config probe data.galaxyproject.org
+          cvmfs_config probe singularity.galaxyproject.org
+
+          # ln -sf /etc/cvmfs/default-client.local /etc/cvmfs/default.local
+          # cvmfs_config setup
+          # cvmfs_config probe software.eessi.io
+          # ln -sf /etc/cvmfs/default-proxy.local /etc/cvmfs/default.local
+          # cvmfs_config showconfig -s data.biocommons.aarnet.edu.au
+          # cvmfs_config showconfig -s data.galaxyproject.org
+          # cvmfs_config showconfig -s software.eessi.io
+    
+    # - name: set up cvmfs and probe source
+    #   shell: |
+    #       cvmfs_config setup
+    #       sed -i 's%#+dir:/etc/auto.master.d%+dir:/etc/auto.master.d%' /etc/auto.master
+    #       systemctl restart autofs
+    #       cvmfs_config setup
+    #       # cvmfs_config probe data.biocommons.aarnet.edu.au
+    #       # cvmfs_config probe data.galaxyproject.org
+    #       # cvmfs_config probe singularity.galaxyproject.org
+    #       # cvmfs_config showconfig -s software.eessi.io
+    #       # cvmfs_config probe software.eessi.io
+
+
+
+          
+    
+
+    
+    
+    
+    
+
+
+
+
+    # - name: Add /usr/local/shpc/local/bin to PATH
+    #   lineinfile:
+    #     path: /etc/environment
+    #     regexp: '^PATH='
+    #     line: 'PATH="{{ ansible_env.PATH }}:/usr/local/shpc/local/bin"'
+    #     state: present
+
+    # - name: Add /usr/local/shpc/bin to PATH
+    #   lineinfile:
+    #     path: /etc/environment
+    #     regexp: '^PATH='
+    #     line: 'PATH=$PATH:/usr/local/shpc/bin'
+    #     state: present
+
+    # - name: Remove /usr/local/games from PATH
+    #   lineinfile:
+    #     path: /etc/environment
+    #     regexp: '^PATH='
+    #     line: "{{ item }}"
+    #   with_items:
+    #     - "PATH={{ ansible_env.PATH | regex_replace(':/usr/local/games(?=:|$)', '') }}"
+
+    # # Update env var PATH 
+    # - name: Add /usr/local/spack/bin to PATH
+    #   lineinfile:
+    #     path: /etc/environment
+    #     regexp: '^PATH='
+    #     line: 'PATH="{{ ansible_env.PATH }}:/usr/local/spack/bin"'
+        # state: present
+
+    - name: Update PATH to remove /usr/local/games and add /usr/local/spack/bin
+      lineinfile:
+        path: /etc/environment
+        regexp: '^PATH='
+        line: 'PATH="{{ updated_path }}"'
+        state: present
+      vars:
+        current_path: "{{ ansible_env.PATH }}"
+        updated_path: "{{ current_path | replace('/usr/local/games', '') | trim | replace('::', ':') | regex_replace('^:|:$', '') | regex_replace('^:', '') | regex_replace(':$', '') }}:/usr/local/spack/bin"
+
+    # - name: Ensure changes take effect immediately
+    #   shell: source /etc/environment
+
+    # - name: Reload environment variables
+    #   shell: |
+    #     . /etc/environment
+    #     echo $PATH
+    #   register: new_env
+
+    # - name: Display new PATH
+    #   debug:
+    #     var: new_env.stdout
+
+
+
+    # Last step: load and unload modules
+    # Or set the MODULEPATH env variable?
+    - name: Comment out existing module paths
+      lineinfile:
+        path: /etc/lmod/modulespath
+        regexp: '^(.*(/etc/lmod/modules|/usr/share/lmod/lmod/modulefiles).*)'
+        line: '# \1'
+        backrefs: yes
+        state: present
+
+    - name: Add new module paths
+      lineinfile:
+        path: /etc/lmod/modulespath
+        line: "{{ item }}"
+        state: present
+      loop:
+        - '/apps/Modules/modulefiles'
+        - '/opt/Modules/modulefiles'
+
+    # Install biocontainer
+    # - name: Install Biocontainers using Spack
+    #   command: |
+    #     source /apps/spack/share/spack/setup-env.sh && \
+    #     spack install biocontainers --prefix=/apps/biocontainers
+
+    # Install Spark
+    # - name: Download Apache Spark
+    #   get_url:
+    #     url: https://downloads.apache.org/spark/spark-3.5.3/spark-3.5.3-bin-hadoop3.tgz
+    #     dest: /tmp/spark-3.5.3-bin-hadoop3.tgz
+
+    # - name: Extract Apache Spark
+    #   unarchive:
+    #     src: /tmp/spark-3.5.3-bin-hadoop3.tgz
+    #     dest: /apps
+    #     remote_src: yes
+
+    # - name: Set up environment variables for Spark
+    #   lineinfile:
+    #     path: /home/{{ ansible_user }}/.bashrc  # Ensure this points to the correct user's home directory.
+    #     line: |
+    #       export SPARK_HOME=/opt/spark-3.5.3-bin-hadoop3
+    #       export PATH=$SPARK_HOME/bin:$PATH
+    #     state: present
+
+    # - name: Source .bashrc to apply changes (optional)
+    #   shell: source /home/{{ ansible_user }}/.bashrc
+    #   args:
+    #     executable: /bin/bash
+
+    # - name: Verify Spark installation
+    #   shell: spark-shell --version
+    #   register: spark_version_output
+
+    # - name: Display Spark version output
+    #   debug:
+    #     var: spark_version_output.stdout
+
+
+    #     - name: Set up Spack environment variables
+    #       lineinfile:
+    #         path: /etc/profile.d/spack.sh
+    #         line: 'export PATH=/apps/spack/bin:$PATH'
+
+    # - name: Install Biocontainers using Spack
+    #   command: |
+    #     source /apps/spack/share/spack/setup-env.sh && \
+    #     spack install biocontainers
+
+    # - name: Ensure the /opt/Modules/modulefiles directory exists
+    #   file:
+    #     path: /opt/Modules/modulefiles
+    #     state: directory
+        # mode: '0755'  # Set permissions for the directory
+
+
+
+    # - name: Create modulefile for Spack
+    #   copy:
+    #     dest: /apps/Modules/modulefiles/spack/
+    #     content: |
+    #       whatis("Spack")
+    #       setenv("SPACK_ROOT", "/apps/spack")
+    #       prepend_path("PATH", "/apps/spack/bin")

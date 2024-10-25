@@ -1,0 +1,31 @@
+packer {
+  required_plugins {
+    openstack = {
+      version = ">= 1.1.2"
+      source = "github.com/hashicorp/openstack"
+    }
+
+    ansible = {
+      version = ">= 1.1.1"
+      source  = "github.com/hashicorp/ansible"
+    }
+  }
+}
+
+source "openstack" "ubuntu" {
+  image_name          = "test-bioimage-v1"
+  flavor              = "c3.1c2m10d"
+  availability_zone   = "CloudV3"
+  source_image        = "27e044c0-5ce7-4adc-8d95-73aa229a3e2f"
+  ssh_username        = "ubuntu"
+  volume_size          = 20
+}
+
+build {
+  sources = ["source.openstack.ubuntu"]
+
+  provisioner "ansible" {
+    playbook_file = "./set-bioimage.yml"
+    extra_arguments = ["--extra-vars", "ansible_user=ubuntu"]
+  }
+}
