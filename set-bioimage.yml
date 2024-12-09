@@ -197,7 +197,7 @@
     - name: Create Nextflow folder
       shell: |
         mkdir -p /apps/Modules/modulefiles/nextflow
-        mkdir -p /apps/nextflow/24.04.4/bin
+        mkdir -p /apps/nextflow/24.10.2/bin
       args:
         executable: /bin/bash
 
@@ -210,17 +210,17 @@
     - name: Move Nextflow to /apps
       copy:
         src: /tmp/nextflow
-        dest: /apps/nextflow/24.04.4/bin
+        dest: /apps/nextflow/24.10.2/bin
         mode: '0755'
         remote_src: yes
 
     - name: Verify Nextflow installation
       shell: | 
-        export NXF_DIST=/apps/nextflow/24.04.4/framework
-        export CAPSULE_CACHE_DIR=/apps/nextflow/24.04.4/capsule
-        export PATH=/apps/nextflow/24.04.4/bin:${PATH}
+        export NXF_DIST=/apps/nextflow/24.10.2/framework
+        export CAPSULE_CACHE_DIR=/apps/nextflow/24.10.2/capsule
+        export PATH=/apps/nextflow/24.10.2/bin:${PATH}
         nextflow -version
-        chmod 0664 /apps/nextflow/24.04.4/framework/24.04.4/nextflow-24.04.4-one.jar
+        chmod 0664 /apps/nextflow/24.10.2/framework/24.10.2/nextflow-24.10.2-one.jar
       register: nextflow_version
 
     - name: Clean up temporary files
@@ -230,14 +230,14 @@
 
     - name: Create modulefile for Nextflow
       copy:
-        dest: /apps/Modules/modulefiles/nextflow/24.04.4
+        dest: /apps/Modules/modulefiles/nextflow/24.10.2
         content: |
           #%Module1.0
 
           module-whatis   "Nextflow"
-          prepend-path PATH "/apps/nextflow/24.04.4/bin"
-          setenv NXF_DIST /apps/nextflow/24.04.4/framework
-          setenv CAPSULE_CACHE_DIR /apps/nextflow/24.04.4/capsule
+          prepend-path PATH "/apps/nextflow/24.10.2/bin"
+          setenv NXF_DIST /apps/nextflow/24.10.2/framework
+          setenv CAPSULE_CACHE_DIR /apps/nextflow/24.10.2/capsule
 
     # Install shpc
     # - name: Create shpc installation directory
@@ -254,24 +254,80 @@
     # Install shpc
     - name: Install shpc
       shell: |
-        cd /apps
+        mkdir -p /opt/shpc/bin
+        cd /opt/shpc
         git clone -b 0.1.28 https://github.com/singularityhub/singularity-hpc.git
         cd singularity-hpc
         pip install -e .[all]
+        mv /usr/local/bin/shpc /opt/shpc/bin/
+        cp /opt/shpc/singularity-hpc/shpc/settings.yml /opt/shpc/singularity-hpc/shpc/settings-default.yml 
+        cp /opt/shpc/singularity-hpc/shpc/main/modules/templates/singularity.lua /opt/shpc/singularity-hpc/shpc/main/modules/templates/singularity-original.lua
+
+    - name: update module_base
+      lineinfile:
+        path: /opt/shpc/singularity-hpc/shpc/settings.yml
+        regexp: '^module_base: \$root_dir/modules'  
+        line: 'module_base: $HOME/shpc/modules' 
+        state: present 
+
+    - name: update container_base
+      lineinfile:
+        path: /opt/shpc/singularity-hpc/shpc/settings.yml
+        regexp: '^container_base: \$root_dir/containers' 
+        line: 'container_base: $HOME/shpc/containers' 
+        state: present  
+
+    - name: update wrapper_base
+      lineinfile:
+        path: /opt/shpc/singularity-hpc/shpc/settings.yml
+        regexp: '^wrapper_base: \$root_dir/modules'  
+        line: 'wrapper_base: $HOME/shpc/wrappers' 
+        state: present
+
+    - name: update view_base
+      lineinfile:
+        path: /opt/shpc/singularity-hpc/shpc/settings.yml
+        regexp: '^views_base: \$root_dir/views'  
+        line: 'views_base: $HOME/shpc/views' 
+        state: present
+
+    - name: Check if singularity.lua exists
+      stat:
+        path: "/opt/shpc/singularity-hpc/shpc/main/modules/templates/singularity.lua"
+      register: lua_file
+
+    - name: Create singularity.lua if it does not exist
+      copy:
+        dest: "/opt/shpc/singularity-hpc/shpc/main/modules/templates/singularity.lua"
+        content: |
+          -- Default content for singularity.lua
+          local moduleDir = subprocess("realpath " .. myFileName()):match("(.*[/])") or "."
+      when: not lua_file.stat.exists
+
+    - name: Replace line starting with 'local moduleDir'
+      lineinfile:
+        path: "/opt/shpc/singularity-hpc/shpc/main/modules/templates/singularity.lua"
+        regexp: '^local moduleDir.*'  
+        line: 'local moduleDir = myFileName():match("(.*[/])") or "."' 
+        state: present
 
     # - name: Create modulefiles directory
     #   file:
-    #     path: "/apps/Modules/modulefiles/shpc"
+    #     path: "/opt/Modules/modulefiles/shpc"
     #     state: directory
         # mode: '0755'
     
-    # - name: Create shpc modulefile
-    #   copy:
-    #     dest: "/apps/Modules/modulefiles/shpc/0.1.28"
-    #     content: |
-    #       #%Module1.0
+    - name: Create shpc modulefile
+      copy:
+        dest: "/opt/Modules/modulefiles/shpc"
+        content: |
+          #%Module1.0
 
-    #       prepend-path PATH "/apps/shpc/0.1.28/bin"
+          module-whatis   "Singularity HPC"
+          prepend-path PATH "/opt/shpc/bin"
+          if { [ module-info mode load ] } {
+            module load singularity
+          }
 
     - name: Move apt installed software to /apps
       shell: |
