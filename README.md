@@ -79,7 +79,7 @@ module avail
 
 To use an application, load it with:
 ```
-module load [app]
+module load <app>
 ```
 
 ## Instances Management
@@ -90,7 +90,7 @@ Since the image size is large, it is recommended to create bootable volumes firs
 To create and start instances with the volumes:
 ```
 cd bioimage/manage
-./openstack/create-instances.sh <ssh-public-key> <VM-prefix>
+./openstack/create-instances.sh <key-pair> <VM-prefix>
 ```
 
 ### Shut Down and Restart Instances
