@@ -1,0 +1,14 @@
+---
+- name: Create multiple users on VMs
+  hosts: training
+  become: yes
+  tasks:
+    - name: Create user accounts
+      user:
+        name: "{{ item.username }}"
+        password: "{{ item.password | password_hash('sha512') }}"
+        shell: /bin/bash
+        createhome: yes
+        home: "/home/{{ item.username }}"
+        state: present
+      loop: "{{ users }}"

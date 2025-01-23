@@ -1,5 +1,5 @@
 ---
-- name: Set up bioimage VM 
+- name: Build a bioimage
   hosts: all
   become: true
 
@@ -627,48 +627,6 @@
     #       # cvmfs_config probe software.eessi.io
 
 
-
-          
-    
-
-    
-    
-    
-    
-
-
-
-
-    # - name: Add /usr/local/shpc/local/bin to PATH
-    #   lineinfile:
-    #     path: /etc/environment
-    #     regexp: '^PATH='
-    #     line: 'PATH="{{ ansible_env.PATH }}:/usr/local/shpc/local/bin"'
-    #     state: present
-
-    # - name: Add /usr/local/shpc/bin to PATH
-    #   lineinfile:
-    #     path: /etc/environment
-    #     regexp: '^PATH='
-    #     line: 'PATH=$PATH:/usr/local/shpc/bin'
-    #     state: present
-
-    # - name: Remove /usr/local/games from PATH
-    #   lineinfile:
-    #     path: /etc/environment
-    #     regexp: '^PATH='
-    #     line: "{{ item }}"
-    #   with_items:
-    #     - "PATH={{ ansible_env.PATH | regex_replace(':/usr/local/games(?=:|$)', '') }}"
-
-    # # Update env var PATH 
-    # - name: Add /usr/local/spack/bin to PATH
-    #   lineinfile:
-    #     path: /etc/environment
-    #     regexp: '^PATH='
-    #     line: 'PATH="{{ ansible_env.PATH }}:/usr/local/spack/bin"'
-        # state: present
-
     - name: Update PATH to remove /usr/local/games and add /usr/local/spack/bin
       lineinfile:
         path: /etc/environment
@@ -679,23 +637,6 @@
         current_path: "{{ ansible_env.PATH }}"
         updated_path: "{{ current_path | replace('/usr/local/games', '') | trim | replace('::', ':') | regex_replace('^:|:$', '') | regex_replace('^:', '') | regex_replace(':$', '') }}:/usr/local/spack/bin"
 
-    # - name: Ensure changes take effect immediately
-    #   shell: source /etc/environment
-
-    # - name: Reload environment variables
-    #   shell: |
-    #     . /etc/environment
-    #     echo $PATH
-    #   register: new_env
-
-    # - name: Display new PATH
-    #   debug:
-    #     var: new_env.stdout
-
-
-
-    # Last step: load and unload modules
-    # Or set the MODULEPATH env variable?
     - name: Comment out existing module paths
       lineinfile:
         path: /etc/lmod/modulespath
@@ -713,68 +654,3 @@
         - '/apps/Modules/modulefiles'
         - '/opt/Modules/modulefiles'
 
-    # Install biocontainer
-    # - name: Install Biocontainers using Spack
-    #   command: |
-    #     source /apps/spack/share/spack/setup-env.sh && \
-    #     spack install biocontainers --prefix=/apps/biocontainers
-
-    # Install Spark
-    # - name: Download Apache Spark
-    #   get_url:
-    #     url: https://downloads.apache.org/spark/spark-3.5.3/spark-3.5.3-bin-hadoop3.tgz
-    #     dest: /tmp/spark-3.5.3-bin-hadoop3.tgz
-
-    # - name: Extract Apache Spark
-    #   unarchive:
-    #     src: /tmp/spark-3.5.3-bin-hadoop3.tgz
-    #     dest: /apps
-    #     remote_src: yes
-
-    # - name: Set up environment variables for Spark
-    #   lineinfile:
-    #     path: /home/{{ ansible_user }}/.bashrc  # Ensure this points to the correct user's home directory.
-    #     line: |
-    #       export SPARK_HOME=/opt/spark-3.5.3-bin-hadoop3
-    #       export PATH=$SPARK_HOME/bin:$PATH
-    #     state: present
-
-    # - name: Source .bashrc to apply changes (optional)
-    #   shell: source /home/{{ ansible_user }}/.bashrc
-    #   args:
-    #     executable: /bin/bash
-
-    # - name: Verify Spark installation
-    #   shell: spark-shell --version
-    #   register: spark_version_output
-
-    # - name: Display Spark version output
-    #   debug:
-    #     var: spark_version_output.stdout
-
-
-    #     - name: Set up Spack environment variables
-    #       lineinfile:
-    #         path: /etc/profile.d/spack.sh
-    #         line: 'export PATH=/apps/spack/bin:$PATH'
-
-    # - name: Install Biocontainers using Spack
-    #   command: |
-    #     source /apps/spack/share/spack/setup-env.sh && \
-    #     spack install biocontainers
-
-    # - name: Ensure the /opt/Modules/modulefiles directory exists
-    #   file:
-    #     path: /opt/Modules/modulefiles
-    #     state: directory
-        # mode: '0755'  # Set permissions for the directory
-
-
-
-    # - name: Create modulefile for Spack
-    #   copy:
-    #     dest: /apps/Modules/modulefiles/spack/
-    #     content: |
-    #       whatis("Spack")
-    #       setenv("SPACK_ROOT", "/apps/spack")
-    #       prepend_path("PATH", "/apps/spack/bin")

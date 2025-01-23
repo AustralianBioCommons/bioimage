@@ -1,0 +1,17 @@
+---
+- name: Delete all training users
+  hosts: training
+  become: true
+  tasks:
+    - name: Get list of training users
+      ansible.builtin.shell: "getent passwd | awk -F: '$1 ~ /^training[0-9]+$/ {print $1}'"
+      register: training_users
+      changed_when: false
+
+    - name: Delete training users
+      ansible.builtin.user:
+        name: "{{ item }}"
+        state: absent
+        remove: yes
+      loop: "{{ training_users.stdout_lines }}"
+      when: training_users.stdout_lines | length > 0

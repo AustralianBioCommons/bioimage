@@ -1,0 +1,5 @@
+[training]
+test-VM-1 ansible_host=10.0.0.165 ansible_user=ubuntu training_password="1]MJbUj2g?nfi0FJ2$=e4MO)tPM;o>d!l%QP"
+test-VM-2 ansible_host=10.0.0.50 ansible_user=ubuntu training_password=">r[-kj*N&jDx)U3F=E!.Y|.tBD6S6;<IW4[u"
+test-VM-3 ansible_host=10.0.3.23 ansible_user=ubuntu training_password="AM$Y8?9tu)N8:)FW%Y)%5Z+GT{kMpeM4o(Sw"
+test-VM-4 ansible_host=10.0.1.53 ansible_user=ubuntu training_password="fURA.0zSQ?3oDORDc32IJe-[Jx3nKLR3s+rM"

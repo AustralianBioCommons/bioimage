@@ -1,0 +1,19 @@
+---
+- name: Create single user on each VM
+  hosts: training
+  become: yes
+
+  tasks:
+    - name: Create user
+      user:
+        name: training
+        password: "{{ training_password | password_hash('sha512') }}"
+        shell: /bin/bash
+        createhome: yes
+        home: /home/training
+        state: present
+    
+    # - name: Activate user
+    #   user:
+    #     name: training
+    #     state: present

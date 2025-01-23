@@ -1,0 +1,12 @@
+---
+- name: Delete the training account user
+  hosts: training
+  become: true
+
+  tasks:
+    - name: Delete user
+      user:
+        name: training
+        state: absent
+        remove: yes
+        force: yes
