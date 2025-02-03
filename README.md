@@ -108,8 +108,8 @@ Stop instances when they are not in use and restart them as needed.
 Generate passwords for each user and update the inventory file with the password and instance IPs.
 ```
 cd bioimage/manage
-python3 python/update-keys.py <VM-prefix>
 python3 python/update-IP.py <VM-prefix> <project-id>
+python3 python/update-keys.py <VM-prefix>
 ```
 
 #### Step 2: Create Users and Enable Password Access
