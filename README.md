@@ -70,7 +70,7 @@ The image should include the following applications:
 - RStudio
 - Nextflow
 - Snakemake
-- CVMFS client
+- CernVM-FS client
 
 You can check available applications using:
 ```
@@ -80,6 +80,14 @@ module avail
 To use an application, load it with:
 ```
 module load <app>
+```
+
+Accessing the CVMFS repositories using:
+```
+ls /cvmfs/data.biocommons.aarnet.edu.au
+ls /cvmfs/data.galaxyproject.org
+ls /cvmfs/singularity.galaxyproject.org
+
 ```
 
 ## Instances Management
