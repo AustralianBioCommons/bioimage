@@ -93,9 +93,15 @@ ls /cvmfs/singularity.galaxyproject.org
 ## Instances Management
 
 ### Create Instances and Boot Image
-Since the image size is large, it is recommended to create bootable volumes first, then create instances from those volumes. Use the NCI Cloud Dashboard to create volumes and assign them a consistent prefix (e.g., `training-VM-1`, `training-VM-2`, etc.).
+Since the image size is large, it's recommended to create **bootable volumes** first. When creating a volume, choose "Image" as the source type.
+![Create a Volume](screenshots/nirin-1.jpg)
 
-To create and start instances with the volumes:
+Once the volumes are created, you can launch instances from them.Use the NCI Cloud Dashboard to create volumes and assign them a consistent prefix (e.g., `training-VM-1`, `training-VM-2`, etc.).
+
+To launch instances using the dashboard, fill out the required sections: `Details`, `Source`, `Falvour`, and `Key pair`. In the **Source** section, select the option to boot from an existing volume.
+![Launch an instance](screenshots/nirin-2.jpg)
+
+It is more efficient to start multiple instances using the following script:
 ```
 cd bioimage/manage
 ./openstack/create-instances.sh <key-pair> <VM-prefix>
