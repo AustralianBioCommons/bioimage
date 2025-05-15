@@ -203,7 +203,7 @@ Shut down the instances when they are not in use.
 ```
 
 ### Install New Tools
-`ansible/install-tools.sh` is an example script to install `tree`. Modify it to install more tools for all the VMs.
+`ansible/install-tools.yml` is an example script to install `tree`. Modify it to install more tools for all the VMs.
 ```
-ansible-playbook ./ansible/install-tools.sh
+ansible-playbook ./ansible/install-tools.yml
 ```
