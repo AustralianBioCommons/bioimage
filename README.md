@@ -15,6 +15,7 @@ This repository is designed to build a bioimage (based on Ubuntu) and manage ins
 * [Users Access](#users-access)
     * [Single User for Each Instance](#single-user-for-each-instance)
     * [Multiple Users for Each Instance](#multiple-users-for-each-instance)
+    * [Install New Tools](install-new-tools)
 
 ## Installation
 
@@ -55,6 +56,7 @@ Run the following command to build the bioimage:
 ```
 packer build openstack-bioimage.pkr.hcl
 ```
+The provided script is using `Ubuntu Jammy Minimal 2024-07-01`. Change the `source_image` to one of full `Ubuntu` image can provide more system tools.
 
 ### Step 3: Verify the Built Image
 After the build process is complete, verify the newly created image by running:
@@ -198,4 +200,10 @@ ansible-playbook ./ansible/ssh-password-disable.yml
 Shut down the instances when they are not in use. 
 ```
 ./openstack/instances-stop.sh <VM-prefix>
+```
+
+### Install New Tools
+`ansible/install-tools.sh` is an example script to install `tree`. Modify it to install more tools for all the VMs.
+```
+ansible-playbook ./ansible/install-tools.sh
 ```
