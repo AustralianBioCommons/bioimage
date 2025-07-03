@@ -15,7 +15,8 @@ This repository is designed to build a bioimage (based on Ubuntu) and manage ins
 * [Users Access](#users-access)
     * [Single User for Each Instance](#single-user-for-each-instance)
     * [Multiple Users for Each Instance](#multiple-users-for-each-instance)
-    * [Install New Tools](install-new-tools)
+    * [Install New Tools](#install-new-tools)
+    * [Set Up Home Directory](#set-up-home-directory)
 
 ## Installation
 
@@ -106,6 +107,7 @@ To launch instances using the dashboard, fill out the required sections: `Detail
 It is more efficient to start multiple instances using the following script:
 ```
 cd bioimage/manage
+./openstack/create-bootable-volumes.sh
 ./openstack/create-instances.sh <key-pair> <VM-prefix>
 ```
 
@@ -206,4 +208,10 @@ Shut down the instances when they are not in use.
 `ansible/install-tools.yml` is an example script to install `tree`. Modify it to install more tools for all the VMs.
 ```
 ansible-playbook ./ansible/install-tools.yml
+```
+
+### Set Up Home Directory
+Use `ansible/set-home-dir.yml` as an example to set up a custom Home directory for training users. Modify it as needed.
+```
+ansible-playbook ./ansible/set-home-dir.yml
 ```

@@ -39,19 +39,18 @@
           - r-base
           - pip
           - ansible
+          - tree
         state: present
 
     - name: Ensure the /opt/Modules/modulefiles directory exists
       file:
         path: /opt/Modules/modulefiles
         state: directory
-        # mode: '0755'  # Set permissions for the directory
 
     - name: Ensure the /apps/Modules/modulefiles directory exists
       file:
         path: /apps/Modules/modulefiles
         state: directory
-        # mode: '0755'  # Set permissions for the directory
 
     # Install Singularity
     - name: Check if /apps/go exists
@@ -105,14 +104,6 @@
             dest: /apps/
             remote_src: yes
 
-        # - name: Set up Go environment variables in .bashrc
-        #   lineinfile:
-        #     path: /home/{{ ansible_user }}/.bashrc 
-        #     line: |
-        #       export GOPATH=${HOME}/go
-        #       export PATH=/apps/go/bin:${PATH}:${GOPATH}/bin
-        #     state: present
-
     - name: Create directories for Singularity 
       shell: |
         export VERSION=4.2.1 && \
@@ -122,8 +113,6 @@
         wget https://github.com/sylabs/singularity/releases/download/v${VERSION}/singularity-ce-${VERSION}.tar.gz && \
         tar -xzf singularity-ce-${VERSION}.tar.gz && \
         cd ./singularity-ce-${VERSION}
-      # environment:
-        # GOPATH: "{{ lookup('env', 'HOME') }}/go"
 
     - name: Compile the SingularityCE source code
       shell: |
@@ -136,9 +125,6 @@
         make -C ./builddir install
       args:
         executable: /bin/bash
-      # environment:
-      #   GOPATH: "{{ lookup('env', 'HOME') }}/go"
-      #   PATH: "/usr/local/go/bin:{{ lookup('env', 'PATH') }}"
 
     - name: Clean up Singularity source code
       file:
@@ -169,22 +155,6 @@
         - name: Clone Spack repository
           shell: |
             git clone -c feature.manyFiles=true --depth=2 https://github.com/spack/spack.git /usr/local/spack
-
-    # - name: Ensure the spack directory exists
-    #   file:
-    #     path: /apps/Modules/modulefiles/spack/
-    #     state: directory
-        # mode: '0755'  # Set permissions for the directory
-
-    # - name: Create modulefile for Spack
-    #   copy:
-    #     dest: /apps/Modules/modulefiles/spack/0.23.0
-    #     content: |
-    #       #%Module1.0
-
-    #       module-whatis "Spack"
-    #       setenv SPACK_ROOT "/apps/spack/0.23.0"
-    #       prepend-path PATH  "/apps/spack/0.23.0/bin"
 
     # Intall Nextflow
     - name: Ensure Java is installed
@@ -238,18 +208,6 @@
           prepend-path PATH "/apps/nextflow/24.10.2/bin"
           setenv NXF_DIST /apps/nextflow/24.10.2/framework
           setenv CAPSULE_CACHE_DIR /apps/nextflow/24.10.2/capsule
-
-    # Install shpc
-    # - name: Create shpc installation directory
-    #   file:
-    #     path: "/usr/local/shpc"
-    #     state: directory
-        # mode: '0755'
-
-    # - name: Install shpc
-    #   pip:
-    #     name: "singularity-hpc==0.1.28"
-    #     extra_args: --prefix /usr/local/shpc
 
     # Install shpc
     - name: Install shpc
@@ -310,12 +268,6 @@
         regexp: '^local moduleDir.*'  
         line: 'local moduleDir = myFileName():match("(.*[/])") or "."' 
         state: present
-
-    # - name: Create modulefiles directory
-    #   file:
-    #     path: "/opt/Modules/modulefiles/shpc"
-    #     state: directory
-        # mode: '0755'
     
     - name: Create shpc modulefile
       copy:
@@ -404,97 +356,20 @@
         name: cvmfs
         state: present
 
-    # - name: Download EESSI configuration package
-    #   get_url:
-    #     url: https://github.com/EESSI/filesystem-layer/releases/download/latest/cvmfs-config-eessi_latest_all.deb
-    #     dest: /tmp/cvmfs-config-eessi_latest_all.deb
-
-    # - name: Install EESSI configuration package
-    #   apt:
-    #     deb: /tmp/cvmfs-config-eessi_latest_all.deb
-
-    # - name: Remove EESSI configuration package
-    #   file:
-    #     path: /tmp/cvmfs-config-eessi_latest_all.deb
-    #     state: absent
-
-    # - name: Write default-client.local
-    #   copy:
-    #     dest: /etc/cvmfs/default-client.local
-    #     content: |
-    #       CVMFS_CLIENT_PROFILE=single
-    #       CVMFS_QUOTA_LIMIT=4096
-    #       CVMFS_USE_GEOAPI=yes
-
     - name: Write default.local
       copy:
         dest: /etc/cvmfs/default.local
         content: |
           CVMFS_REPOSITORIES=data.biocommons.aarnet.edu.au,data.galaxyproject.org,singularity.galaxyproject.org
-          CVMFS_HTTP_PROXY='130.56.247.90:3128;130.56.247.132:3128'
-          # CVMFS_HTTP_PROXY='cvmfs-proxy-1.nci.org.au;cvmfs-proxy-2.nci.org.au'
+          CVMFS_HTTP_PROXY='cvmfs-proxy-1.nci.org.au;cvmfs-proxy-2.nci.org.au'
           CVMFS_QUOTA_LIMIT=4096
           CVMFS_USE_GEOAPI=yes
 
     - name: set up cvmfs and set autofs
       shell: |
-          # ln -s /etc/cvmfs/default-client.local /etc/cvmfs/default.local
-          # ln -s /etc/cvmfs/default-proxy.local /etc/cvmfs/default.local
           cvmfs_config setup
           sed -i 's%#+dir:/etc/auto.master.d%+dir:/etc/auto.master.d%' /etc/auto.master
           systemctl restart autofs
-          # rm -f /etc/auto.cvmfs
-          # cvmfs_config probe software.eessi.io
-
-    # - name: Modify autofs to never timeout
-    #   lineinfile:
-    #     path: /etc/auto.master.d/cvmfs.autofs 
-    #     regexp: '^/cvmfs /etc/auto.cvmfs'
-    #     line: '/cvmfs /etc/auto.cvmfs --timeout=0'
-    #     state: present
-
-    # - name: Write singularity.galaxyproject.org.pub key
-    #   copy:
-    #     dest: /etc/auto.cvmfs
-    #     content: |
-    #       # CVMFS Repositories
-    #       cvmfs-config.cern.ch -fstype=cvmfs :cvmfs-config.cern.ch
-    #       software.eessi.io  -fstype=cvmfs    :software.eessi.io
-    #       data.galaxyproject.org -fstype=cvmfs  :data.galaxyproject.org 
-    #       singularity.galaxyproject.org -fstype=cvmfs  :singularity.galaxyproject.org 
-    #       data.biocommons.aarnet.edu.au -fstype=cvmfs   :data.biocommons.aarnet.edu.au
-    
-    # - name: Write common.conf 
-    #   copy:
-    #     dest: /etc/cvmfs/common.conf 
-    #     content: |
-    #       # This should be included from every domain config.
-    #       # cvmfs does not parse included files for variable names, so first need
-    #       #   to set in the domain config any variable set here.
-
-    #       # The client profile is supposed to be set in /etc/cvmfs/default.local
-    #       if [ "$CVMFS_CLIENT_PROFILE" = "single" ]; then
-    #         if [ "$CVMFS_HTTP_PROXY" = "" ]; then
-    #           # For individual clients (laptops, clusters < 5 nodes), use a site proxy
-    #           # where possible and otherwise a direct stratum 1 connection
-    #           CVMFS_HTTP_PROXY="auto;DIRECT"
-    #         fi
-    #       elif [ "$CVMFS_CLIENT_PROFILE" != "custom" ]; then
-    #         # If not explicitly turned off through the "custom" profile:
-    #         # If an explicit site proxy is set, we also set a fallback proxy so that
-    #         # failing site proxies can be detected
-    #         if [ -n "$CVMFS_HTTP_PROXY" ] && [ "$CVMFS_HTTP_PROXY" != "DIRECT" ] && [ "$CVMFS_HTTP_PROXY" != "auto;DIRECT" ]; then
-    #           CVMFS_FALLBACK_PROXY="http://cvmfsbproxy.cern.ch:3126;http://cvmfsbproxy.fnal.gov:3126"
-    #         fi
-    #       fi
-
-    # - name: Write default.local
-    #   copy:
-    #     dest: /etc/cvmfs/default.local
-    #     content: |
-    #       CVMFS_HTTP_PROXY='cvmfs-proxy-1.nci.org.au,cvmfs-proxy-2.nci.org.au'
-    #       CVMFS_QUOTA_LIMIT=4096
-    #       CVMFS_USE_GEOAPI=yes
 
     - name: Write data.biocommons.aarnet.edu.au.conf 
       copy:
@@ -502,24 +377,6 @@
         content: |
           CVMFS_SERVER_URL="http://bcws.test.aarnet.edu.au/cvmfs/@fqrn@"
           CVMFS_PUBLIC_KEY="/etc/cvmfs/keys/data.biocommons.aarnet.edu.au/data.biocommons.aarnet.edu.au.pub"
-
-    # - name: Write eessi.io.conf
-    #   copy:
-    #     dest: /etc/cvmfs/domain.d/eessi.io.conf
-    #     content: |
-    #       # These are here so cvmfs will notice them if common.conf sets them
-    #       CVMFS_HTTP_PROXY="$CVMFS_HTTP_PROXY"
-    #       CVMFS_FALLBACK_PROXY="$CVMFS_FALLBACK_PROXY"
-    #       . ../common.conf
-
-    #       # Stratum 1 servers for the eessi.io domain
-    #       CVMFS_SERVER_URL="http://aws-eu-central-s1.eessi.science/cvmfs/@fqrn@;http://azure-us-east-s1.eessi.science/cvmfs/@fqrn@"
-
-    #       # Public keys for the eessi.io domain
-    #       CVMFS_KEYS_DIR="$CVMFS_MOUNT_DIR/$CVMFS_CONFIG_REPOSITORY/etc/cvmfs/keys/eessi.io"
-
-    #       # use Geo API, cfr. https://cvmfs.readthedocs.io/en/stable/cpt-configure.html#ordering-of-servers-according-to-geographic-proximity
-    #       CVMFS_USE_GEOAPI="yes"
 
     - name: Write galaxyproject.org.conf 
       copy:
@@ -581,51 +438,13 @@
           dQIDAQAB
           -----END PUBLIC KEY-----
 
-    # - name: Uncomment CVMFS_HTTP_PROXY line
-    #   ansible.builtin.lineinfile:
-    #     path: /etc/cvmfs/default.local 
-    #     regexp: '^#\s*CVMFS_HTTP_PROXY='
-    #     line: 'CVMFS_HTTP_PROXY="130.56.247.90:3128;130.56.247.132:3128"'
-    #     # line: 'CVMFS_HTTP_PROXY="cvmfs-proxy-1.nci.org.au,cvmfs-proxy-2.nci.org.au"'
-
-    # - name: Comment out CVMFS_CLIENT_PROFILE line
-    #   ansible.builtin.lineinfile:
-    #     path: /etc/cvmfs/default.local 
-    #     regexp: '^CVMFS_CLIENT_PROFILE='
-    #     line: '# CVMFS_CLIENT_PROFILE=single'
-
-
     - name: setup cvmfs and probe resources
       shell: |
-          # ln -sf /etc/cvmfs/default-proxy.local /etc/cvmfs/default.local
-          # systemctl restart autofs
           cvmfs_config setup
           cvmfs_config probe cvmfs-config.cern.ch 
-          # cvmfs_config probe software.eessi.io
           cvmfs_config probe data.biocommons.aarnet.edu.au
           cvmfs_config probe data.galaxyproject.org
           cvmfs_config probe singularity.galaxyproject.org
-
-          # ln -sf /etc/cvmfs/default-client.local /etc/cvmfs/default.local
-          # cvmfs_config setup
-          # cvmfs_config probe software.eessi.io
-          # ln -sf /etc/cvmfs/default-proxy.local /etc/cvmfs/default.local
-          # cvmfs_config showconfig -s data.biocommons.aarnet.edu.au
-          # cvmfs_config showconfig -s data.galaxyproject.org
-          # cvmfs_config showconfig -s software.eessi.io
-    
-    # - name: set up cvmfs and probe source
-    #   shell: |
-    #       cvmfs_config setup
-    #       sed -i 's%#+dir:/etc/auto.master.d%+dir:/etc/auto.master.d%' /etc/auto.master
-    #       systemctl restart autofs
-    #       cvmfs_config setup
-    #       # cvmfs_config probe data.biocommons.aarnet.edu.au
-    #       # cvmfs_config probe data.galaxyproject.org
-    #       # cvmfs_config probe singularity.galaxyproject.org
-    #       # cvmfs_config showconfig -s software.eessi.io
-    #       # cvmfs_config probe software.eessi.io
-
 
     - name: Update PATH to remove /usr/local/games and add /usr/local/spack/bin
       lineinfile:

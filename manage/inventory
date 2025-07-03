@@ -1,3 +1,6 @@
+[all:vars]
+ansible_ssh_common_args=-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+
 [training]
 test-VM-1 ansible_host=10.0.0.165 ansible_user=ubuntu training_password="1]MJbUj2g?nfi0FJ2$=e4MO)tPM;o>d!l%QP"
 test-VM-2 ansible_host=10.0.0.50 ansible_user=ubuntu training_password=">r[-kj*N&jDx)U3F=E!.Y|.tBD6S6;<IW4[u"

@@ -1,0 +1,37 @@
+---
+- name: set the files and env for nextflow training (2025.06)
+  hosts: training
+  become: yes
+
+  tasks:
+    - name: Create empty folders for training
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: training
+        group: training
+      loop:
+        - /home/training/part1
+        - /home/training/singularity_image
+
+    - name: Append lines to ~/.bashrc
+      shell: |
+        echo "module load nextflow singularity" >> /home/training/.bashrc
+        echo "export SINGULARITY_CACHEDIR=/home/training/singularity_image" >> /home/training/.bashrc
+
+    - name: Copy part2 folder with ownership set to training
+      copy:
+        src: /nextflow-training/hello-nextflow-/part2
+        dest: /home/training/
+        remote_src: yes
+        owner: training
+        group: training
+        mode: '0755'
+
+    - name: Create symlinks for each file in source directory
+      shell: |
+        for file in /nextflow-training/singularity_image/*; do
+          ln -sf "$file" /home/training/singularity_image/$(basename "$file")
+        done
+      args:
+        executable: /bin/bash

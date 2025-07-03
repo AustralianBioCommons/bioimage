@@ -6,7 +6,7 @@ import sys
 
 def generate_password(length=36):
     """Generate a random password without problematic characters."""
-    characters = string.ascii_letters + string.digits + "!@#$%^&*()_+-={}[]|:;<>,.?/"
+    characters = string.ascii_letters + string.digits + "!@#$%^&*_+-=|:;,.?/"
     password = ''.join(random.choice(characters) for i in range(length))
     return password
 

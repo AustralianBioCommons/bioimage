@@ -13,7 +13,3 @@
         home: /home/training
         state: present
     
-    # - name: Activate user
-    #   user:
-    #     name: training
-    #     state: present

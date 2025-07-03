@@ -1,20 +1,5 @@
 #!/bin/bash
 
-# # Check if OpenStack virtual environment is activated
-# if [[ -z "$VIRTUAL_ENV" || "$VIRTUAL_ENV" != *"openstack_cli"* ]]; then
-#     source openstack_cli/bin/activate
-# else
-#     echo "OpenStack virtual environment is already activated"
-# fi
-
-# # Check if OpenStack RC file is sourced
-# if [[ -z "$OS_AUTH_URL" ]]; then
-#     source cp76-openrc.sh
-# else
-#     echo "OpenStack RC file is already sourced"
-# fi
-
-
 # Check if both KEY_NAME and VM_PREFIX are provided as arguments
 if [ $# -lt 2 ]; then
     echo "Error: Please provide both KEY_NAME and VM_PREFIX as arguments."

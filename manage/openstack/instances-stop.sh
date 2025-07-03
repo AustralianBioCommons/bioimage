@@ -1,22 +1,5 @@
 #!/bin/bash
 
-# Check if OpenStack virtual environment is activated
-# if [[ -z "$VIRTUAL_ENV" || "$VIRTUAL_ENV" != *"openstack_cli"* ]]; then
-#     source openstack_cli/bin/activate
-# else
-#     echo "OpenStack virtual environment is already activated"
-# fi
-
-# # Check if OpenStack RC file is sourced
-# if [[ -z "$OS_AUTH_URL" ]]; then
-#     source [project-id]-openrc.sh
-# else
-#     echo "OpenStack RC file is already sourced"
-# fi
-
-# stop the server after 2min
-# sleep 120  
-
 # Check if name pattern is provided as an argument
 if [ $# -eq 0 ]; then
     echo "Error: Please provide the name pattern as an argument."
