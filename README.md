@@ -1,5 +1,5 @@
 # BioImage
-This repository is designed to build a bioimage (based on Ubuntu) and manage instances on NCI Nirin (OpenStack) platform (https://cloud.nci.org.au/).
+This repository is designed to build a custom Ubuntu-based bioimage and manage instances on NCI Nirin (OpenStack) platform (https://cloud.nci.org.au/).
 
 ----------------------------
 ## Table of Contents
@@ -9,18 +9,18 @@ This repository is designed to build a bioimage (based on Ubuntu) and manage ins
     * [Setup](#setup)
     * [Activation](#activation)
 * [Build Image](#build-image)
-* [Instances Management](#instances-management)
+* [Instance Management](#instance-management)
     * [Create Instances and Boot Image](#create-instances-and-boot-image)
-    * [Shut Down and Restart Instances](#shut-down-and-restart-the-instances)
-* [Users Access](#users-access)
-    * [Single User for Each Instance](#single-user-for-each-instance)
-    * [Multiple Users for Each Instance](#multiple-users-for-each-instance)
+    * [Shut Down and Restart Instances](#shut-down-and-restart-instances)
+* [User Access](#user-access)
+    * [Single User per Instance](#single-user-per-instance)
+    * [Multiple Users per Instance](#multiple-users-per-instance)
     * [Install New Tools](#install-new-tools)
     * [Set Up Home Directory](#set-up-home-directory)
 
 ## Installation
 
-To get started, launch an Ubuntu instance as the control host and download this repository. Ensure the machine has access to OpenStack.
+Launch an Ubuntu control host from Nirin Cloud access and clone this repository:
 ```
 git clone https://github.com/eileen-xue/bioimage.git
 cd bioimage
@@ -29,7 +29,7 @@ cd bioimage
 ## Environment
 
 ### Setup
-Install the required tools: Packer, Ansible, OpenStack CLI. Then, download your OpenStack RC file `[project_id]-openrc.sh` from NCI Cloud Web Portal.
+Install required tools: Packer, Ansible, OpenStack CLI. Download your OpenStack RC file `[project_id]-openrc.sh` from  NCI Cloud Dashboard and run:
 
 Run the setup script to install dependencies and configure the environment:
 ```
@@ -37,7 +37,7 @@ Run the setup script to install dependencies and configure the environment:
 ```
 
 ### Activation
-Activate the environment before building images, managing instances, or configuring users:
+Activate the environment before proceeding with image builds or instance management:
 ```
 source openstack_cli/bin/activate
 source [project_id]-openrc.sh
@@ -45,7 +45,7 @@ source [project_id]-openrc.sh
 
 ## Build Image
 
-### Step 1: Verify Packer Configuration
+### Step 1: Initialize Packer
 Navigate to the `build` directory and initialize the Packer plugins:
 ```
 cd bioimage/build
@@ -57,9 +57,9 @@ Run the following command to build the bioimage:
 ```
 packer build openstack-bioimage.pkr.hcl
 ```
-The provided script is using `Ubuntu Jammy Minimal 2024-07-01`. Change the `source_image` to one of full `Ubuntu` image can provide more system tools.
+> **Note**: The default base is `Ubuntu Jammy Minimal 2024-07-01`. For broader system tool access, consider changing the `source_image` to a full Ubuntu image.
 
-### Step 3: Verify the Built Image
+### Step 3: Verify Image
 After the build process is complete, verify the newly created image by running:
 ```
 openstack image list | grep bioimage
@@ -75,7 +75,7 @@ The image should include the following applications:
 - Snakemake
 - CernVM-FS client
 
-You can check available applications using:
+Check available modules with:
 ```
 module avail
 ```
@@ -85,7 +85,7 @@ To use an application, load it with:
 module load <app>
 ```
 
-Accessing the CVMFS repositories using:
+Access CVMFS repositories:
 ```
 ls /cvmfs/data.biocommons.aarnet.edu.au
 ls /cvmfs/data.galaxyproject.org
@@ -93,22 +93,31 @@ ls /cvmfs/singularity.galaxyproject.org
 
 ```
 
-## Instances Management
+## Instance Management
 
 ### Create Instances and Boot Image
-Since the image size is large, it's recommended to create **bootable volumes** first. When creating a volume, choose "Image" as the source type.
-![Create a Volume](screenshots/nirin-1.jpg)
+You may follow the [Nirin Quick Start Guide](https://opus.nci.org.au/spaces/Help/pages/152207474/Nirin+-+Quick+Start+Guide) , or use the script to create instances
+```
+cd bioimage/manage
+./openstack/create-instances-with-image.sh
+```
 
-Once the volumes are created, you can launch instances from them.Use the NCI Cloud Dashboard to create volumes and assign them a consistent prefix (e.g., `training-VM-1`, `training-VM-2`, etc.).
+If instance creation fails using an image, create  **bootable volumes** instead:  
 
-To launch instances using the dashboard, fill out the required sections: `Details`, `Source`, `Falvour`, and `Key pair`. In the **Source** section, select the option to boot from an existing volume.
-![Launch an instance](screenshots/nirin-2.jpg)
+1. In the dashboard, create a volume with "Image" as the source.
+    ![Create a Volume](screenshots/nirin-1.jpg)
 
-It is more efficient to start multiple instances using the following script:
+    Once the volumes are created, you can launch instances from them.Use the NCI Cloud Dashboard to create volumes and assign them a consistent prefix (e.g., `training-VM-1`, `training-VM-2`, etc.).
+
+2. Launch instances using existing volumes.
+    To launch instances via dashboard, fill out the required sections: `Details`, `Source`, `Falvour`, and `Key pair`. In the **Source** section, select the option to boot from an existing volume.
+    ![Launch an instance](screenshots/nirin-2.jpg)
+
+For bulk operations:
 ```
 cd bioimage/manage
 ./openstack/create-bootable-volumes.sh
-./openstack/create-instances.sh <key-pair> <VM-prefix>
+./openstack/create-instances-with-volume.sh <key-pair> <VM-prefix>
 ```
 
 ### Shut Down and Restart Instances
@@ -118,9 +127,9 @@ Stop instances when they are not in use and restart them as needed.
 ./openstack/instances-stop.sh <VM-prefix>
 ```
 
-## Users Access 
+## User Access 
 
-### Single User for Each Instance
+### Single User per Instance
 
 #### Step 1: Generate passwords and Update IP Information
 Generate passwords for each user and update the inventory file with the password and instance IPs.
@@ -141,7 +150,8 @@ ansible-playbook ./ansible/ssh-password-enable.yml
 Create and associate floating IPs with the instances for public access. Save the username, password and public IP information in the `VMs` folder.
 ```
 ./openstack/floating-IP-create.sh <VM-prefix>
-python3 python/list-VM-info.py <VM-prefix>
+python3 python/list-VM-info.py <VM-prefix>  # Save each VM details to a txt file
+python3 python/save-VM-info-csv.py <VM-prefix> # Or, save all VMs details to a csv file
 ```
 
 #### Step 4: Delete Users, Disable Password and Public IP Access
@@ -158,7 +168,7 @@ Shut down the instances when they are not in use.
 ./openstack/instances-stop.sh <VM-prefix>
 ```
 
-### Multiple Users for Each Instance
+### Multiple Users per Instance
 When multiple users need to share the same instance, follow these steps:
 
 #### Step 1: Step 1: Generate passwords and Update IP Information
